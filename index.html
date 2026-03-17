@@ -1,464 +1,873 @@
-import React, { useMemo, useState } from "react";
-import { motion } from "framer-motion";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { ChevronDown, ChevronUp, Copy, RotateCcw, ArrowLeft, ArrowRight } from "lucide-react";
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AIプロンプトフロー</title>
+  <style>
+    :root{
+      --bg:#f6f7fb;
+      --card:#ffffff;
+      --line:#dfe3ea;
+      --text:#1f2937;
+      --sub:#6b7280;
+      --accent:#111827;
+      --accent2:#2563eb;
+      --soft:#eef2ff;
+      --shadow:0 8px 24px rgba(15,23,42,.08);
+      --radius:18px;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP",Meiryo,sans-serif;
+      background:var(--bg);
+      color:var(--text);
+      line-height:1.6;
+    }
+    .wrap{
+      max-width:1280px;
+      margin:0 auto;
+      padding:24px;
+    }
+    .hero{
+      margin-bottom:20px;
+    }
+    .hero h1{
+      margin:0 0 8px;
+      font-size:clamp(28px,4vw,42px);
+      line-height:1.2;
+    }
+    .hero p{
+      margin:0;
+      color:var(--sub);
+      max-width:900px;
+    }
+    .progress-wrap{
+      margin-top:16px;
+      width:100%;
+      background:#e5e7eb;
+      height:10px;
+      border-radius:999px;
+      overflow:hidden;
+    }
+    .progress-bar{
+      height:100%;
+      width:0%;
+      background:linear-gradient(90deg,#111827,#2563eb);
+      transition:.25s ease;
+    }
 
-type SingleValue = string | null;
-type MultiValue = string[];
+    .layout{
+      display:grid;
+      grid-template-columns:320px 1fr;
+      gap:24px;
+      align-items:start;
+    }
 
-type StepKey = "goal" | "target" | "role" | "style" | "sources";
+    .card{
+      background:var(--card);
+      border:1px solid var(--line);
+      border-radius:var(--radius);
+      box-shadow:var(--shadow);
+    }
+    .card-header{
+      padding:20px 20px 8px;
+    }
+    .card-header h2,
+    .card-header h3{
+      margin:0 0 6px;
+      line-height:1.35;
+    }
+    .card-desc{
+      color:var(--sub);
+      font-size:14px;
+    }
+    .card-body{
+      padding:20px;
+    }
 
-type FormState = {
-  goal: SingleValue;
-  target: SingleValue;
-  role: SingleValue;
-  style: MultiValue;
-  sources: MultiValue;
-};
+    .sidebar{
+      position:sticky;
+      top:16px;
+    }
+    .log-item{
+      margin-bottom:18px;
+    }
+    .log-label{
+      font-size:13px;
+      color:var(--sub);
+      margin-bottom:6px;
+    }
+    .log-value{
+      display:flex;
+      flex-wrap:wrap;
+      gap:8px;
+    }
+    .badge{
+      display:inline-flex;
+      align-items:center;
+      padding:7px 10px;
+      border-radius:999px;
+      background:#f3f4f6;
+      border:1px solid var(--line);
+      font-size:13px;
+      line-height:1.2;
+    }
+    .badge.outline{
+      background:#fff;
+    }
 
-type Option = {
-  value: string;
-  label: string;
-  description?: string;
-};
+    .mobile-log-toggle{
+      display:none;
+      margin-bottom:16px;
+    }
+    .toggle-btn{
+      width:100%;
+      border:none;
+      background:transparent;
+      text-align:left;
+      font:inherit;
+      color:inherit;
+      cursor:pointer;
+      padding:0;
+    }
 
-const goalOptions: Option[] = [
-  { value: "research", label: "調べたい" },
-  { value: "check", label: "点検したい" },
-  { value: "create", label: "作りたい" },
-  { value: "read", label: "読み解きたい" },
-  { value: "summarize", label: "まとめたい" },
-  { value: "compare", label: "比較したい" },
-  { value: "systemize", label: "仕組み化したい" },
-];
+    .step-title{
+      font-size:14px;
+      color:var(--sub);
+      margin-bottom:10px;
+    }
+    .question{
+      font-size:28px;
+      font-weight:700;
+      line-height:1.35;
+      margin:0 0 10px;
+    }
+    .question-desc{
+      font-size:15px;
+      color:var(--sub);
+      margin:0 0 18px;
+    }
 
-const targetOptions: Option[] = [
-  { value: "x", label: "X投稿" },
-  { value: "line", label: "LINE通知文" },
-  { value: "pdf", label: "PDF資料" },
-  { value: "training", label: "研修内容" },
-  { value: "internal", label: "社内文書" },
-  { value: "report", label: "レポート" },
-  { value: "workflow", label: "ワークフロー" },
-  { value: "image", label: "画像表現" },
-  { value: "analysis", label: "分析結果" },
-  { value: "other", label: "その他" },
-];
+    .option-list{
+      display:grid;
+      gap:12px;
+    }
+    .option-btn,
+    .check-item{
+      width:100%;
+      text-align:left;
+      border:1px solid var(--line);
+      background:#fff;
+      border-radius:16px;
+      padding:16px;
+      cursor:pointer;
+      transition:.2s ease;
+    }
+    .option-btn:hover,
+    .check-item:hover{
+      background:#fafafa;
+      border-color:#c9d1dc;
+    }
+    .option-btn.active,
+    .check-item.active{
+      border-color:var(--accent2);
+      background:var(--soft);
+    }
+    .option-title{
+      font-weight:700;
+      margin-bottom:4px;
+    }
+    .option-desc{
+      color:var(--sub);
+      font-size:14px;
+    }
 
-const roleOptions: Option[] = [
-  { value: "analyze", label: "分析するチャット" },
-  { value: "summarize", label: "要約するチャット" },
-  { value: "template", label: "定型生成するチャット" },
-  { value: "judge", label: "判定するチャット" },
-  { value: "organize", label: "整理するチャット" },
-  { value: "compare", label: "比較するチャット" },
-  { value: "design", label: "設計するチャット" },
-];
+    .check-item{
+      display:flex;
+      gap:12px;
+      align-items:flex-start;
+    }
+    .check-item input{
+      margin-top:4px;
+      transform:scale(1.15);
+      accent-color:var(--accent2);
+    }
+    .check-item.disabled{
+      opacity:.55;
+      cursor:not-allowed;
+    }
 
-const styleOptions: Option[] = [
-  { value: "accurate", label: "正確に" },
-  { value: "safe", label: "安全に" },
-  { value: "clear", label: "分かりやすく" },
-  { value: "short", label: "短く" },
-  { value: "detailed", label: "詳しく" },
-  { value: "structured", label: "定型的に" },
-  { value: "thorough", label: "漏れなく" },
-  { value: "soft", label: "柔らかく" },
-  { value: "creative", label: "発想を広げて" },
-  { value: "comparable", label: "比較しやすく" },
-];
+    .hint{
+      margin-top:16px;
+      padding:14px 16px;
+      border-radius:14px;
+      background:#f9fafb;
+      color:var(--sub);
+      font-size:14px;
+      border:1px dashed var(--line);
+    }
 
-const sourceOptions: Option[] = [
-  { value: "official", label: "公式情報", description: "公式発表、正式仕様、公式サイトの案内などを集めます" },
-  { value: "guidelines", label: "ガイドライン", description: "運用ルール、表現ルール、社内外の基準を集めます" },
-  { value: "terms", label: "利用規約", description: "プラットフォームやサービスの利用条件・禁止事項を確認します" },
-  { value: "examples", label: "参考事例", description: "近い事例、良い例、参考にできる構成や表現を集めます" },
-  { value: "incidents", label: "炎上事例", description: "過去のトラブル例や、避けるべきケースを確認します" },
-  { value: "ng", label: "NG表現", description: "使わない方がよい表現、避けるべき言い回しを整理します" },
-  { value: "axes", label: "比較軸", description: "比較や分析を行うための観点や評価項目を集めます" },
-  { value: "background", label: "背景知識", description: "テーマの前提理解に必要な業界知識や周辺情報を集めます" },
-  { value: "terms2", label: "専門用語", description: "用語の意味、使い方、定義のズレを防ぐための情報を整理します" },
-  { value: "primary", label: "一次情報候補", description: "信頼性の高い元ソースになりうる情報源を優先して集めます" },
-  { value: "safe_alt", label: "安全な代替表現", description: "強すぎる表現や危うい表現の言い換え候補を集めます" },
-  { value: "unknowns", label: "未確定点", description: "まだ断定できない点や、確認が必要な論点を洗い出します" },
-  { value: "none", label: "特になし", description: "事前調査なしで進めたい場合に選びます" },
-];
+    .actions{
+      margin-top:20px;
+      display:flex;
+      justify-content:space-between;
+      gap:12px;
+      flex-wrap:wrap;
+    }
+    .btn-group{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+    }
+    .btn{
+      border:none;
+      border-radius:12px;
+      padding:11px 16px;
+      font:inherit;
+      cursor:pointer;
+      transition:.2s ease;
+    }
+    .btn:disabled{
+      opacity:.45;
+      cursor:not-allowed;
+    }
+    .btn-primary{
+      background:var(--accent);
+      color:#fff;
+    }
+    .btn-primary:hover:not(:disabled){
+      background:#000;
+    }
+    .btn-secondary{
+      background:#fff;
+      border:1px solid var(--line);
+      color:var(--text);
+    }
+    .btn-secondary:hover:not(:disabled){
+      background:#f9fafb;
+    }
 
-const steps = [
-  {
-    key: "goal" as StepKey,
-    step: 1,
-    title: "何をしたいですか？",
-    description:
-      "このチャットで最もやりたいことに近いものを1つ選んでください。ここで選んだ内容が、この後のチャット設計の土台になります。",
-    type: "single" as const,
-    options: goalOptions,
-  },
-  {
-    key: "target" as StepKey,
-    step: 2,
-    title: "対象は何ですか？",
-    description:
-      "扱いたい対象に最も近いものを1つ選んでください。ここで選んだ対象に応じて、後で集めるソースや相性のよいAIが変わります。",
-    type: "single" as const,
-    options: targetOptions,
-  },
-  {
-    key: "role" as StepKey,
-    step: 3,
-    title: "どのようなチャットを作りたいですか？",
-    description:
-      "このチャットに持たせたい役割に近いものを1つ選んでください。ここでは完成形ではなく、どのような働きをするチャットにしたいかを決めます。",
-    type: "single" as const,
-    options: roleOptions,
-  },
-  {
-    key: "style" as StepKey,
-    step: 4,
-    title: "どのように表現したいですか？",
-    description:
-      "望む表現や出力の方向性を3つまで選んでください。ここで選んだ内容は、後で作るプロンプトの口調や条件に反映されます。",
-    type: "multi" as const,
-    max: 3,
-    options: styleOptions,
-  },
-  {
-    key: "sources" as StepKey,
-    step: 5,
-    title: "事前に集めたいソースは何ですか？",
-    description:
-      "必要だと思うものを選んでください。複数選択可。ここで選んだ内容をもとに、後で Perplexity に貼る調査指示文を組み立てます。",
-    type: "multi" as const,
-    options: sourceOptions,
-  },
-];
+    .result-stack{
+      display:grid;
+      gap:16px;
+    }
+    .result-title{
+      font-size:18px;
+      font-weight:700;
+      margin:0 0 8px;
+    }
+    .result-text{
+      margin:0;
+    }
+    .codebox{
+      background:#0f172a;
+      color:#e5eefc;
+      border-radius:16px;
+      padding:16px;
+      font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;
+      font-size:13px;
+      white-space:pre-wrap;
+      word-break:break-word;
+      overflow:auto;
+      max-height:420px;
+      line-height:1.65;
+    }
+    .copy-row{
+      margin-top:12px;
+      display:flex;
+      justify-content:flex-end;
+    }
+    .small-note{
+      margin-top:8px;
+      color:var(--sub);
+      font-size:14px;
+    }
+    .ol{
+      margin:0;
+      padding-left:20px;
+    }
+    .ol li + li{
+      margin-top:8px;
+    }
 
-const labelFrom = (options: Option[], value: string | null) => options.find((o) => o.value === value)?.label ?? "未選択";
-const labelsFrom = (options: Option[], values: string[]) => values.length ? values.map((v) => options.find((o) => o.value === v)?.label ?? v).join(" / ") : "未選択";
+    @media (max-width: 900px){
+      .layout{
+        grid-template-columns:1fr;
+      }
+      .sidebar{
+        display:none;
+      }
+      .mobile-log-toggle{
+        display:block;
+      }
+      .question{
+        font-size:24px;
+      }
+      .wrap{
+        padding:16px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="hero">
+      <h1>AIプロンプトフロー</h1>
+      <p>生成AI活用のためのチャート式プロンプト設計ガイド。何をしたいかを整理し、必要な材料を集め、相性のよいAIへつなげるための設計フローです。</p>
+      <div class="progress-wrap"><div class="progress-bar" id="progressBar"></div></div>
+    </section>
 
-function pickAI(state: FormState) {
-  const isClaude =
-    state.goal === "check" ||
-    state.role === "judge" ||
-    state.style.includes("safe") ||
-    state.style.includes("accurate") ||
-    state.style.includes("thorough") ||
-    state.target === "image";
-
-  const isGemini =
-    state.goal === "read" ||
-    state.goal === "compare" ||
-    state.target === "pdf" ||
-    state.target === "report" ||
-    state.target === "analysis" ||
-    state.role === "compare" ||
-    state.role === "analyze" ||
-    state.style.includes("comparable") ||
-    state.style.includes("detailed");
-
-  if (isClaude && !isGemini) {
-    return {
-      name: "Claude",
-      reason: "点検・判定・安全性重視の用途に向いているためです。",
-    };
-  }
-  if (isGemini && !isClaude) {
-    return {
-      name: "Gemini",
-      reason: "PDF読解・比較・分析・分解の用途に向いているためです。",
-    };
-  }
-  return {
-    name: "GPT",
-    reason: "定型生成・整理・量産・再利用しやすい出力に向いているためです。",
-  };
-}
-
-function buildChatSummary(state: FormState) {
-  const target = labelFrom(targetOptions, state.target);
-  const role = labelFrom(roleOptions, state.role).replace("するチャット", "チャット");
-  if (state.target === "x" && state.role === "judge") return "X投稿のコンプライアンス判定チャット";
-  if (state.target === "line" && state.role === "template") return "LINE通知文の定型生成チャット";
-  if (state.target === "pdf" && state.role === "compare") return "PDF資料の比較・読解チャット";
-  return `${target}の${role}`;
-}
-
-function buildPerplexityPrompt(state: FormState) {
-  const target = labelFrom(targetOptions, state.target);
-  const role = labelFrom(roleOptions, state.role);
-  const sourceLabels = state.sources.length ? state.sources.map((s) => sourceOptions.find((o) => o.value === s)?.label).filter(Boolean) : ["必要な前提情報"];
-  const styleLabels = state.style.map((s) => styleOptions.find((o) => o.value === s)?.label).filter(Boolean);
-
-  return `目的:\n${target}に関する${role}を作るための材料収集\n\n対象:\n${target}における必要情報、注意点、実務で使うための前提条件\n\n観点:\n- ${sourceLabels.join("\n- ")}\n${styleLabels.length ? `- 出力は ${styleLabels.join(" / ")} を意識して使える形にするための観点\n` : ""}\n優先条件:\n- 公式情報を優先\n- 一次情報候補を優先\n- 事実と推測を分ける\n\n不要:\n- 一般論のみの解説\n- 曖昧な断定\n- 初心者向けの長すぎる説明\n\n出力形式:\n【事実】\n【注意点】\n【禁止事項】\n【参考表現】\n【未確定点】\n【後続AIに渡すべき前提条件】`;
-}
-
-function buildNextAIPrompt(state: FormState, aiName: string) {
-  const summary = buildChatSummary(state);
-  const styleLabels = state.style.map((s) => styleOptions.find((o) => o.value === s)?.label).filter(Boolean);
-  return `以下は、${summary}を作るために収集した材料です。\nこの材料をもとに、実務で使えるチャット用プロンプトを作成してください。\n\n目的:\n${summary}として使えるプロンプトを完成させたい\n\n要件:\n- 実務でそのまま使いやすいこと\n- 役割、目的、前提、禁止事項、出力形式を整理すること\n- ${styleLabels.length ? `表現は ${styleLabels.join(" / ")} を意識すること` : "必要な表現条件を整理すること"}\n- 不明点は断定しないこと\n\n希望する出力:\n1. システム/基本プロンプト\n2. 使い方\n3. 入力例\n4. 出力形式\n\n材料:\n[ここにPerplexityの出力を貼る]`;
-}
-
-function buildCompletionImage(state: FormState) {
-  const target = labelFrom(targetOptions, state.target);
-  const role = labelFrom(roleOptions, state.role);
-  return `${target}を対象に、${role}として使えるチャットを作成できます。`;
-}
-
-function ResultBlock({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <Card className="rounded-2xl shadow-sm">
-      <CardHeader className="pb-3">
-        <CardTitle className="text-lg">{title}</CardTitle>
-      </CardHeader>
-      <CardContent>{children}</CardContent>
-    </Card>
-  );
-}
-
-export default function AIPromptFlowSite() {
-  const [currentStep, setCurrentStep] = useState(0);
-  const [mobileOpen, setMobileOpen] = useState(false);
-  const [form, setForm] = useState<FormState>({
-    goal: null,
-    target: null,
-    role: null,
-    style: [],
-    sources: [],
-  });
-
-  const isDone = currentStep >= steps.length;
-  const progress = isDone ? 100 : ((currentStep) / steps.length) * 100;
-
-  const ai = useMemo(() => pickAI(form), [form]);
-  const summary = useMemo(() => buildChatSummary(form), [form]);
-  const perplexityPrompt = useMemo(() => buildPerplexityPrompt(form), [form]);
-  const nextAIPrompt = useMemo(() => buildNextAIPrompt(form, ai.name), [form, ai.name]);
-  const completionImage = useMemo(() => buildCompletionImage(form), [form]);
-
-  const current = steps[currentStep];
-
-  const canProceed = useMemo(() => {
-    if (isDone) return true;
-    const key = current.key;
-    if (current.type === "single") return Boolean(form[key] as SingleValue);
-    if (key === "style") return (form.style?.length ?? 0) > 0;
-    if (key === "sources") return (form.sources?.length ?? 0) > 0;
-    return false;
-  }, [current, form, isDone]);
-
-  const setSingle = (key: StepKey, value: string) => setForm((prev) => ({ ...prev, [key]: value }));
-
-  const toggleMulti = (key: "style" | "sources", value: string, max?: number) => {
-    setForm((prev) => {
-      const arr = prev[key];
-      const exists = arr.includes(value);
-      let next = exists ? arr.filter((v) => v !== value) : [...arr, value];
-      if (!exists && max && next.length > max) return prev;
-      return { ...prev, [key]: next };
-    });
-  };
-
-  const copyText = async (text: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-    } catch {}
-  };
-
-  const resetAll = () => {
-    setForm({ goal: null, target: null, role: null, style: [], sources: [] });
-    setCurrentStep(0);
-  };
-
-  const LogPanel = (
-    <Card className="rounded-2xl shadow-sm sticky top-4">
-      <CardHeader>
-        <CardTitle>現在のチャット設計</CardTitle>
-        <CardDescription>選択内容がここにたまっていきます</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4 text-sm">
-        <div>
-          <div className="text-muted-foreground mb-1">やりたいこと</div>
-          <Badge variant="secondary">{labelFrom(goalOptions, form.goal)}</Badge>
+    <div class="mobile-log-toggle">
+      <div class="card">
+        <div class="card-header">
+          <button class="toggle-btn" id="mobileLogBtn">
+            <h3>現在のチャット設計 <span id="mobileArrow">▼</span></h3>
+            <div class="card-desc">選択内容を確認できます</div>
+          </button>
         </div>
-        <div>
-          <div className="text-muted-foreground mb-1">対象</div>
-          <Badge variant="secondary">{labelFrom(targetOptions, form.target)}</Badge>
-        </div>
-        <div>
-          <div className="text-muted-foreground mb-1">チャットの役割</div>
-          <Badge variant="secondary">{labelFrom(roleOptions, form.role)}</Badge>
-        </div>
-        <div>
-          <div className="text-muted-foreground mb-1">表現</div>
-          <div className="flex flex-wrap gap-2">
-            {form.style.length ? form.style.map((v) => <Badge key={v} variant="outline">{styleOptions.find((o) => o.value === v)?.label}</Badge>) : <Badge variant="secondary">未選択</Badge>}
-          </div>
-        </div>
-        <div>
-          <div className="text-muted-foreground mb-1">集めたいソース</div>
-          <div className="flex flex-wrap gap-2">
-            {form.sources.length ? form.sources.map((v) => <Badge key={v} variant="outline">{sourceOptions.find((o) => o.value === v)?.label}</Badge>) : <Badge variant="secondary">未選択</Badge>}
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
-
-  return (
-    <div className="min-h-screen bg-muted/30 p-4 md:p-8">
-      <div className="max-w-7xl mx-auto space-y-6">
-        <div className="space-y-3">
-          <motion.h1 initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="text-2xl md:text-4xl font-bold tracking-tight">
-            生成AI活用のためのチャート式プロンプト設計ガイド
-          </motion.h1>
-          <p className="text-muted-foreground max-w-3xl">
-            何をしたいかを整理し、必要な材料を集め、相性のよいAIへつなげるための設計フローです。
-          </p>
-          <Progress value={progress} className="h-2" />
-        </div>
-
-        <div className="md:hidden">
-          <Card className="rounded-2xl shadow-sm">
-            <CardHeader className="cursor-pointer" onClick={() => setMobileOpen((v) => !v)}>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle>現在のチャット設計</CardTitle>
-                  <CardDescription>選択内容を確認できます</CardDescription>
-                </div>
-                {mobileOpen ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
-              </div>
-            </CardHeader>
-            {mobileOpen && <CardContent>{LogPanel.props.children}</CardContent>}
-          </Card>
-        </div>
-
-        <div className="grid md:grid-cols-[320px_1fr] gap-6 items-start">
-          <div className="hidden md:block">{LogPanel}</div>
-
-          <div className="space-y-6">
-            {!isDone ? (
-              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-                <Card className="rounded-2xl shadow-sm">
-                  <CardHeader>
-                    <CardTitle>{`STEP ${current.step} / ${steps.length}`}</CardTitle>
-                    <CardDescription className="text-base font-medium text-foreground pt-2">{current.title}</CardDescription>
-                    <p className="text-sm text-muted-foreground leading-6">{current.description}</p>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    {current.type === "single" && current.options.map((option) => {
-                      const active = form[current.key] === option.value;
-                      return (
-                        <button
-                          key={option.value}
-                          onClick={() => setSingle(current.key, option.value)}
-                          className={`w-full text-left rounded-2xl border p-4 transition ${active ? "border-foreground bg-background shadow-sm" : "border-border bg-background hover:bg-muted"}`}
-                        >
-                          <div className="font-medium">{option.label}</div>
-                          {option.description && <div className="text-sm text-muted-foreground mt-1">{option.description}</div>}
-                        </button>
-                      );
-                    })}
-
-                    {current.type === "multi" && current.options.map((option) => {
-                      const values = form[current.key] as string[];
-                      const checked = values.includes(option.value);
-                      const limitReached = current.max ? values.length >= current.max && !checked : false;
-                      return (
-                        <label key={option.value} className={`flex items-start gap-3 rounded-2xl border p-4 bg-background ${limitReached ? "opacity-60" : "cursor-pointer"}`}>
-                          <Checkbox checked={checked} disabled={limitReached} onCheckedChange={() => toggleMulti(current.key as "style" | "sources", option.value, current.max)} />
-                          <div className="space-y-1">
-                            <div className="font-medium">{option.label}</div>
-                            {option.description && <div className="text-sm text-muted-foreground">{option.description}</div>}
-                          </div>
-                        </label>
-                      );
-                    })}
-
-                    <Separator className="my-4" />
-                    <div className="flex items-center justify-between gap-3">
-                      <Button variant="outline" onClick={() => setCurrentStep((s) => Math.max(0, s - 1))} disabled={currentStep === 0}>
-                        <ArrowLeft className="h-4 w-4 mr-2" />戻る
-                      </Button>
-                      <div className="flex gap-3">
-                        <Button variant="outline" onClick={resetAll}>
-                          <RotateCcw className="h-4 w-4 mr-2" />最初からやり直す
-                        </Button>
-                        <Button onClick={() => setCurrentStep((s) => s + 1)} disabled={!canProceed}>
-                          次へ<ArrowRight className="h-4 w-4 ml-2" />
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            ) : (
-              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-                <Card className="rounded-2xl shadow-sm">
-                  <CardHeader>
-                    <CardTitle>あなたのチャット設計がまとまりました</CardTitle>
-                    <CardDescription>
-                      選択した内容をもとに、相性のよいAIと、その前に行う調査指示、次に貼る依頼文を整理しました。
-                    </CardDescription>
-                  </CardHeader>
-                </Card>
-
-                <ResultBlock title="1. あなたが作ろうとしているチャット">
-                  <p className="text-base font-medium">{summary}</p>
-                </ResultBlock>
-
-                <ResultBlock title="2. 相性のよいAI">
-                  <div className="flex items-center gap-3 mb-3">
-                    <Badge className="text-sm px-3 py-1">{ai.name}</Badge>
-                  </div>
-                  <p className="text-sm text-muted-foreground">{ai.reason}</p>
-                </ResultBlock>
-
-                <ResultBlock title="3. まず Perplexity に貼る文章">
-                  <div className="rounded-2xl bg-muted p-4 whitespace-pre-wrap text-sm leading-6">{perplexityPrompt}</div>
-                  <div className="mt-4 flex justify-end">
-                    <Button variant="outline" onClick={() => copyText(perplexityPrompt)}><Copy className="h-4 w-4 mr-2" />コピー</Button>
-                  </div>
-                </ResultBlock>
-
-                <ResultBlock title="4. 次にAIへ貼る文章">
-                  <div className="rounded-2xl bg-muted p-4 whitespace-pre-wrap text-sm leading-6">{nextAIPrompt}</div>
-                  <div className="mt-4 flex justify-end">
-                    <Button variant="outline" onClick={() => copyText(nextAIPrompt)}><Copy className="h-4 w-4 mr-2" />コピー</Button>
-                  </div>
-                </ResultBlock>
-
-                <ResultBlock title="5. 完成イメージ">
-                  <p className="text-sm leading-6">{completionImage}</p>
-                </ResultBlock>
-
-                <ResultBlock title="6. このあとやること">
-                  <ol className="list-decimal pl-5 space-y-2 text-sm leading-6">
-                    <li>Perplexity に「まず Perplexity に貼る文章」を入力する</li>
-                    <li>出てきた結果をコピーする</li>
-                    <li>{ai.name} に「次にAIへ貼る文章」と一緒に入力する</li>
-                    <li>生成されたプロンプトを新しいチャットに設定する</li>
-                    <li>作りたい用途に応じてチャットを使い始める</li>
-                  </ol>
-                </ResultBlock>
-
-                <div className="flex justify-between gap-3">
-                  <Button variant="outline" onClick={() => setCurrentStep(steps.length - 1)}>
-                    <ArrowLeft className="h-4 w-4 mr-2" />入力へ戻る
-                  </Button>
-                  <Button variant="outline" onClick={resetAll}>
-                    <RotateCcw className="h-4 w-4 mr-2" />最初からやり直す
-                  </Button>
-                </div>
-              </motion.div>
-            )}
-          </div>
-        </div>
+        <div class="card-body" id="mobileLogBody" style="display:none;"></div>
       </div>
     </div>
-  );
-}
+
+    <div class="layout">
+      <aside class="sidebar">
+        <div class="card">
+          <div class="card-header">
+            <h3>現在のチャット設計</h3>
+            <div class="card-desc">選択内容がここにたまっていきます</div>
+          </div>
+          <div class="card-body" id="sidebarLog"></div>
+        </div>
+      </aside>
+
+      <main id="app"></main>
+    </div>
+  </div>
+
+  <script>
+    const goalOptions = [
+      { value: "research", label: "調べたい" },
+      { value: "check", label: "点検したい" },
+      { value: "create", label: "作りたい" },
+      { value: "read", label: "読み解きたい" },
+      { value: "summarize", label: "まとめたい" },
+      { value: "compare", label: "比較したい" },
+      { value: "systemize", label: "仕組み化したい" }
+    ];
+
+    const targetOptions = [
+      { value: "x", label: "X投稿" },
+      { value: "line", label: "LINE通知文" },
+      { value: "pdf", label: "PDF資料" },
+      { value: "training", label: "研修内容" },
+      { value: "internal", label: "社内文書" },
+      { value: "report", label: "レポート" },
+      { value: "workflow", label: "ワークフロー" },
+      { value: "image", label: "画像表現" },
+      { value: "analysis", label: "分析結果" },
+      { value: "other", label: "その他" }
+    ];
+
+    const roleOptions = [
+      { value: "analyze", label: "分析するチャット" },
+      { value: "summarize", label: "要約するチャット" },
+      { value: "template", label: "定型生成するチャット" },
+      { value: "judge", label: "判定するチャット" },
+      { value: "organize", label: "整理するチャット" },
+      { value: "compare", label: "比較するチャット" },
+      { value: "design", label: "設計するチャット" }
+    ];
+
+    const styleOptions = [
+      { value: "accurate", label: "正確に" },
+      { value: "safe", label: "安全に" },
+      { value: "clear", label: "分かりやすく" },
+      { value: "short", label: "短く" },
+      { value: "detailed", label: "詳しく" },
+      { value: "structured", label: "定型的に" },
+      { value: "thorough", label: "漏れなく" },
+      { value: "soft", label: "柔らかく" },
+      { value: "creative", label: "発想を広げて" },
+      { value: "comparable", label: "比較しやすく" }
+    ];
+
+    const sourceOptions = [
+      { value: "official", label: "公式情報", description: "公式発表、正式仕様、公式サイトの案内などを集めます" },
+      { value: "guidelines", label: "ガイドライン", description: "運用ルール、表現ルール、社内外の基準を集めます" },
+      { value: "terms", label: "利用規約", description: "プラットフォームやサービスの利用条件・禁止事項を確認します" },
+      { value: "examples", label: "参考事例", description: "近い事例、良い例、参考にできる構成や表現を集めます" },
+      { value: "incidents", label: "炎上事例", description: "過去のトラブル例や、避けるべきケースを確認します" },
+      { value: "ng", label: "NG表現", description: "使わない方がよい表現、避けるべき言い回しを整理します" },
+      { value: "axes", label: "比較軸", description: "比較や分析を行うための観点や評価項目を集めます" },
+      { value: "background", label: "背景知識", description: "テーマの前提理解に必要な業界知識や周辺情報を集めます" },
+      { value: "terms2", label: "専門用語", description: "用語の意味、使い方、定義のズレを防ぐための情報を整理します" },
+      { value: "primary", label: "一次情報候補", description: "信頼性の高い元ソースになりうる情報源を優先して集めます" },
+      { value: "safe_alt", label: "安全な代替表現", description: "強すぎる表現や危うい表現の言い換え候補を集めます" },
+      { value: "unknowns", label: "未確定点", description: "まだ断定できない点や、確認が必要な論点を洗い出します" },
+      { value: "none", label: "特になし", description: "事前調査なしで進めたい場合に選びます" }
+    ];
+
+    const steps = [
+      {
+        key: "goal",
+        step: 1,
+        title: "何をしたいですか？",
+        description: "このチャットで最もやりたいことに近いものを1つ選んでください。ここで選んだ内容が、この後のチャット設計の土台になります。",
+        type: "single",
+        options: goalOptions,
+        hint: "迷った場合は、最終的にAIに何をさせたいかを基準に選んでください。"
+      },
+      {
+        key: "target",
+        step: 2,
+        title: "対象は何ですか？",
+        description: "扱いたい対象に最も近いものを1つ選んでください。ここで選んだ対象に応じて、後で集めるソースや相性のよいAIが変わります。",
+        type: "single",
+        options: targetOptions,
+        hint: "迷った場合は、最終的に何についてのチャットを作りたいかを基準に選んでください。"
+      },
+      {
+        key: "role",
+        step: 3,
+        title: "どのようなチャットを作りたいですか？",
+        description: "このチャットに持たせたい役割に近いものを1つ選んでください。ここでは完成形ではなく、どのような働きをするチャットにしたいかを決めます。",
+        type: "single",
+        options: roleOptions,
+        hint: "迷った場合は、このチャットを使って最終的に何をさせたいかを基準に選んでください。"
+      },
+      {
+        key: "style",
+        step: 4,
+        title: "どのように表現したいですか？",
+        description: "望む表現や出力の方向性を3つまで選んでください。ここで選んだ内容は、後で作るプロンプトの口調や条件に反映されます。",
+        type: "multi",
+        max: 3,
+        options: styleOptions,
+        hint: "迷った場合は、まず「正確に」「分かりやすく」「漏れなく」の3つから考えると使いやすいです。"
+      },
+      {
+        key: "sources",
+        step: 5,
+        title: "事前に集めたいソースは何ですか？",
+        description: "必要だと思うものを選んでください。複数選択可。ここで選んだ内容をもとに、後で Perplexity に貼る調査指示文を組み立てます。",
+        type: "multi",
+        options: sourceOptions,
+        hint: "迷った場合は、このチャットを作る前に何を知っておくと精度が上がるかを基準に選んでください。"
+      }
+    ];
+
+    const state = {
+      currentStep: 0,
+      goal: null,
+      target: null,
+      role: null,
+      style: [],
+      sources: []
+    };
+
+    function getLabel(options, value){
+      const found = options.find(o => o.value === value);
+      return found ? found.label : "未選択";
+    }
+
+    function getLabels(options, values){
+      if(!values || !values.length) return "未選択";
+      return values.map(v => {
+        const found = options.find(o => o.value === v);
+        return found ? found.label : v;
+      });
+    }
+
+    function escapeHtml(str){
+      return String(str)
+        .replaceAll("&","&amp;")
+        .replaceAll("<","&lt;")
+        .replaceAll(">","&gt;")
+        .replaceAll('"',"&quot;");
+    }
+
+    function pickAI(){
+      const isClaude =
+        state.goal === "check" ||
+        state.role === "judge" ||
+        state.style.includes("safe") ||
+        state.style.includes("accurate") ||
+        state.style.includes("thorough") ||
+        state.target === "image";
+
+      const isGemini =
+        state.goal === "read" ||
+        state.goal === "compare" ||
+        state.target === "pdf" ||
+        state.target === "report" ||
+        state.target === "analysis" ||
+        state.role === "compare" ||
+        state.role === "analyze" ||
+        state.style.includes("comparable") ||
+        state.style.includes("detailed");
+
+      if (isClaude && !isGemini) {
+        return {
+          name: "Claude",
+          reason: "点検・判定・安全性重視の用途に向いているためです。"
+        };
+      }
+      if (isGemini && !isClaude) {
+        return {
+          name: "Gemini",
+          reason: "PDF読解・比較・分析・分解の用途に向いているためです。"
+        };
+      }
+      return {
+        name: "GPT",
+        reason: "定型生成・整理・量産・再利用しやすい出力に向いているためです。"
+      };
+    }
+
+    function buildSummary(){
+      const target = getLabel(targetOptions, state.target);
+      const role = getLabel(roleOptions, state.role).replace("するチャット", "チャット");
+
+      if (state.target === "x" && state.role === "judge") return "X投稿のコンプライアンス判定チャット";
+      if (state.target === "line" && state.role === "template") return "LINE通知文の定型生成チャット";
+      if (state.target === "pdf" && state.role === "compare") return "PDF資料の比較・読解チャット";
+      return `${target}の${role}`;
+    }
+
+    function buildPerplexityPrompt(){
+      const target = getLabel(targetOptions, state.target);
+      const role = getLabel(roleOptions, state.role);
+      const sourceLabels = getLabels(sourceOptions, state.sources);
+      const styleLabels = getLabels(styleOptions, state.style);
+
+      return `目的:
+${target}に関する${role}を作るための材料収集
+
+対象:
+${target}における必要情報、注意点、実務で使うための前提条件
+
+観点:
+- ${Array.isArray(sourceLabels) ? sourceLabels.join("\n- ") : sourceLabels}
+${Array.isArray(styleLabels) && styleLabels.length ? `- 出力は ${styleLabels.join(" / ")} を意識して使える形にするための観点\n` : ""}優先条件:
+- 公式情報を優先
+- 一次情報候補を優先
+- 事実と推測を分ける
+
+不要:
+- 一般論のみの解説
+- 曖昧な断定
+- 初心者向けの長すぎる説明
+
+出力形式:
+【事実】
+【注意点】
+【禁止事項】
+【参考表現】
+【未確定点】
+【後続AIに渡すべき前提条件】`;
+    }
+
+    function buildNextPrompt(aiName){
+      const summary = buildSummary();
+      const styleLabels = getLabels(styleOptions, state.style);
+      return `以下は、${summary}を作るために収集した材料です。
+この材料をもとに、実務で使えるチャット用プロンプトを作成してください。
+
+目的:
+${summary}として使えるプロンプトを完成させたい
+
+要件:
+- 実務でそのまま使いやすいこと
+- 役割、目的、前提、禁止事項、出力形式を整理すること
+- ${Array.isArray(styleLabels) && styleLabels.length ? `表現は ${styleLabels.join(" / ")} を意識すること` : "必要な表現条件を整理すること"}
+- 不明点は断定しないこと
+
+希望する出力:
+1. システム/基本プロンプト
+2. 使い方
+3. 入力例
+4. 出力形式
+
+材料:
+[ここにPerplexityの出力を貼る]`;
+    }
+
+    function buildCompletionImage(){
+      const target = getLabel(targetOptions, state.target);
+      const role = getLabel(roleOptions, state.role);
+      return `${target}を対象に、${role}として使えるチャットを作成できます。`;
+    }
+
+    function canProceed(){
+      const step = steps[state.currentStep];
+      if(!step) return true;
+
+      if(step.type === "single"){
+        return !!state[step.key];
+      }
+      if(step.key === "style"){
+        return state.style.length > 0;
+      }
+      if(step.key === "sources"){
+        return state.sources.length > 0;
+      }
+      return false;
+    }
+
+    function updateProgress(){
+      const progress = state.currentStep >= steps.length ? 100 : (state.currentStep / steps.length) * 100;
+      document.getElementById("progressBar").style.width = progress + "%";
+    }
+
+    function renderLogHtml(){
+      const styleLabels = getLabels(styleOptions, state.style);
+      const sourceLabels = getLabels(sourceOptions, state.sources);
+
+      return `
+        <div class="log-item">
+          <div class="log-label">やりたいこと</div>
+          <div class="log-value"><span class="badge">${escapeHtml(getLabel(goalOptions, state.goal))}</span></div>
+        </div>
+        <div class="log-item">
+          <div class="log-label">対象</div>
+          <div class="log-value"><span class="badge">${escapeHtml(getLabel(targetOptions, state.target))}</span></div>
+        </div>
+        <div class="log-item">
+          <div class="log-label">チャットの役割</div>
+          <div class="log-value"><span class="badge">${escapeHtml(getLabel(roleOptions, state.role))}</span></div>
+        </div>
+        <div class="log-item">
+          <div class="log-label">表現</div>
+          <div class="log-value">
+            ${
+              Array.isArray(styleLabels)
+                ? styleLabels.map(v => `<span class="badge outline">${escapeHtml(v)}</span>`).join("")
+                : `<span class="badge">${escapeHtml(styleLabels)}</span>`
+            }
+          </div>
+        </div>
+        <div class="log-item">
+          <div class="log-label">集めたいソース</div>
+          <div class="log-value">
+            ${
+              Array.isArray(sourceLabels)
+                ? sourceLabels.map(v => `<span class="badge outline">${escapeHtml(v)}</span>`).join("")
+                : `<span class="badge">${escapeHtml(sourceLabels)}</span>`
+            }
+          </div>
+        </div>
+      `;
+    }
+
+    function renderStep(){
+      const app = document.getElementById("app");
+      if(state.currentStep >= steps.length){
+        renderResults();
+        return;
+      }
+
+      const step = steps[state.currentStep];
+      let optionsHtml = "";
+
+      if(step.type === "single"){
+        optionsHtml = step.options.map(opt => {
+          const active = state[step.key] === opt.value;
+          return `
+            <button class="option-btn ${active ? "active" : ""}" onclick="selectSingle('${step.key}','${opt.value}')">
+              <div class="option-title">${escapeHtml(opt.label)}</div>
+              ${opt.description ? `<div class="option-desc">${escapeHtml(opt.description)}</div>` : ""}
+            </button>
+          `;
+        }).join("");
+      }
+
+      if(step.type === "multi"){
+        const selected = state[step.key];
+        optionsHtml = step.options.map(opt => {
+          const checked = selected.includes(opt.value);
+          const limitReached = step.max ? selected.length >= step.max && !checked : false;
+          return `
+            <label class="check-item ${checked ? "active" : ""} ${limitReached ? "disabled" : ""}">
+              <input
+                type="checkbox"
+                ${checked ? "checked" : ""}
+                ${limitReached ? "disabled" : ""}
+                onchange="toggleMulti('${step.key}','${opt.value}',${step.max || 999})"
+              />
+              <div>
+                <div class="option-title">${escapeHtml(opt.label)}</div>
+                ${opt.description ? `<div class="option-desc">${escapeHtml(opt.description)}</div>` : ""}
+              </div>
+            </label>
+          `;
+        }).join("");
+      }
+
+      app.innerHTML = `
+        <div class="card">
+          <div class="card-header">
+            <div class="step-title">STEP ${step.step} / ${steps.length}</div>
+            <h2 class="question">${escapeHtml(step.title)}</h2>
+            <p class="question-desc">${escapeHtml(step.description)}</p>
+          </div>
+          <div class="card-body">
+            <div class="option-list">${optionsHtml}</div>
+            <div class="hint">${escapeHtml(step.hint)}</div>
+            <div class="actions">
+              <button class="btn btn-secondary" onclick="prevStep()" ${state.currentStep === 0 ? "disabled" : ""}>戻る</button>
+              <div class="btn-group">
+                <button class="btn btn-secondary" onclick="resetAll()">最初からやり直す</button>
+                <button class="btn btn-primary" onclick="nextStep()" ${canProceed() ? "" : "disabled"}>次へ</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderResults(){
+      const app = document.getElementById("app");
+      const ai = pickAI();
+      const summary = buildSummary();
+      const perplexityPrompt = buildPerplexityPrompt();
+      const nextPrompt = buildNextPrompt(ai.name);
+      const completionImage = buildCompletionImage();
+
+      app.innerHTML = `
+        <div class="result-stack">
+          <div class="card">
+            <div class="card-header">
+              <h2>あなたのチャット設計がまとまりました</h2>
+              <div class="card-desc">選択した内容をもとに、相性のよいAIと、その前に行う調査指示、次に貼る依頼文を整理しました。</div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header"><h3>1. あなたが作ろうとしているチャット</h3></div>
+            <div class="card-body"><p class="result-text"><strong>${escapeHtml(summary)}</strong></p></div>
+          </div>
+
+          <div class="card">
+            <div class="card-header"><h3>2. 相性のよいAI</h3></div>
+            <div class="card-body">
+              <div class="log-value" style="margin-bottom:10px;"><span class="badge">${escapeHtml(ai.name)}</span></div>
+              <p class="result-text">${escapeHtml(ai.reason)}</p>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header"><h3>3. まず Perplexity に貼る文章</h3></div>
+            <div class="card-body">
+              <div class="codebox" id="perplexityBox">${escapeHtml(perplexityPrompt)}</div>
+              <div class="copy-row"><button class="btn btn-secondary" onclick="copyText('perplexityBox')">コピー</button></div>
+              <div class="small-note">この文章を Perplexity に貼り付けて、後続AIに渡すための材料を集めてください。</div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header"><h3>4. 次にAIへ貼る文章</h3></div>
+            <div class="card-body">
+              <div class="codebox" id="nextAiBox">${escapeHtml(nextPrompt)}</div>
+              <div class="copy-row"><button class="btn btn-secondary" onclick="copyText('nextAiBox')">コピー</button></div>
+              <div class="small-note">Perplexity で集めた結果を、この文章と一緒に ${escapeHtml(ai.name)} に貼り付けてください。</div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header"><h3>5. 完成イメージ</h3></div>
+            <div class="card-body"><p class="result-text">${escapeHtml(completionImage)}</p></div>
+          </div>
+
+          <div class="card">
+            <div class="card-header"><h3>6. このあとやること</h3></div>
+            <div class="card-body">
+              <ol class="ol">
+                <li>Perplexity に「まず Perplexity に貼る文章」を入力する</li>
+                <li>出てきた結果をコピーする</li>
+                <li>${escapeHtml(ai.name)} に「次にAIへ貼る文章」と一緒に入力する</li>
+                <li>生成されたプロンプトを新しいチャットに設定する</li>
+                <li>作りたい用途に応じてチャットを使い始める</li>
+              </ol>
+              <div class="actions" style="margin-top:18px;">
+                <button class="btn btn-secondary" onclick="backToLastStep()">入力へ戻る</button>
+                <button class="btn btn-secondary" onclick="resetAll()">最初からやり直す</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderAll(){
+      document.getElementById("sidebarLog").innerHTML = renderLogHtml();
+      document.getElementById("mobileLogBody").innerHTML = renderLogHtml();
+      updateProgress();
+      renderStep();
+    }
+
+    function selectSingle(key, value){
+      state[key] = value;
+      renderAll();
+    }
+
+    function toggleMulti(key, value, max){
+      const arr = state[key];
+      const index = arr.indexOf(value);
+      if(index >= 0){
+        arr.splice(index, 1);
+      }else{
+        if(arr.length >= max) return;
+        arr.push(value);
+      }
+      renderAll();
+    }
+
+    function nextStep(){
+      if(!canProceed()) return;
+      state.currentStep++;
+      renderAll();
+    }
+
+    function prevStep(){
+      if(state.currentStep > 0){
+        state.currentStep--;
+        renderAll();
+      }
+    }
+
+    function backToLastStep(){
+      state.currentStep = steps.length - 1;
+      renderAll();
+    }
+
+    function resetAll(){
+      state.currentStep = 0;
+      state.goal = null;
+      state.target = null;
+      state.role = null;
+      state.style = [];
+      state.sources = [];
+      renderAll();
+    }
+
+    function copyText(elementId){
+      const text = document.getElementById(elementId).innerText;
+      navigator.clipboard.writeText(text).then(() => {
+        alert("コピーしました");
+      });
+    }
+
+    document.getElementById("mobileLogBtn").addEventListener("click", () => {
+      const body = document.getElementById("mobileLogBody");
+      const arrow = document.getElementById("mobileArrow");
+      const open = body.style.display === "block";
+      body.style.display = open ? "none" : "block";
+      arrow.textContent = open ? "▼" : "▲";
+    });
+
+    renderAll();
+  </script>
+</body>
+</html>
