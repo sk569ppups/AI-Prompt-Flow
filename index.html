@@ -253,11 +253,6 @@
       display:grid;
       gap:16px;
     }
-    .result-title{
-      font-size:18px;
-      font-weight:700;
-      margin:0 0 8px;
-    }
     .result-text{
       margin:0;
     }
@@ -489,89 +484,152 @@
     }
 
     function pickAI(){
-      const isClaude =
-        state.goal === "check" ||
-        state.role === "judge" ||
-        state.style.includes("safe") ||
-        state.style.includes("accurate") ||
-        state.style.includes("thorough") ||
-        state.target === "image";
+      let scores = { Claude: 0, GPT: 0, Gemini: 0 };
 
-      const isGemini =
-        state.goal === "read" ||
-        state.goal === "compare" ||
-        state.target === "pdf" ||
-        state.target === "report" ||
-        state.target === "analysis" ||
-        state.role === "compare" ||
-        state.role === "analyze" ||
-        state.style.includes("comparable") ||
-        state.style.includes("detailed");
+      // STEP1
+      if(state.goal === "check") scores.Claude += 3;
+      if(state.goal === "create") scores.GPT += 3;
+      if(state.goal === "read") scores.Gemini += 3;
+      if(state.goal === "summarize") { scores.GPT += 2; scores.Gemini += 1; }
+      if(state.goal === "compare") scores.Gemini += 3;
+      if(state.goal === "systemize") { scores.GPT += 2; scores.Claude += 1; }
+      if(state.goal === "research") { scores.Claude += 1; scores.Gemini += 1; scores.GPT += 1; }
 
-      if (isClaude && !isGemini) {
-        return {
-          name: "Claude",
-          reason: "点検・判定・安全性重視の用途に向いているためです。"
-        };
+      // STEP2
+      if(state.target === "x") { scores.Claude += 2; scores.GPT += 1; }
+      if(state.target === "line") scores.GPT += 3;
+      if(state.target === "pdf") scores.Gemini += 3;
+      if(state.target === "training") { scores.Claude += 1; scores.Gemini += 2; }
+      if(state.target === "internal") { scores.GPT += 2; scores.Claude += 1; }
+      if(state.target === "report") { scores.Gemini += 2; scores.GPT += 1; }
+      if(state.target === "workflow") scores.GPT += 2;
+      if(state.target === "image") { scores.Claude += 2; scores.Gemini += 1; }
+      if(state.target === "analysis") scores.Gemini += 3;
+
+      // STEP3
+      if(state.role === "analyze") scores.Gemini += 3;
+      if(state.role === "summarize") { scores.GPT += 1; scores.Gemini += 2; }
+      if(state.role === "template") scores.GPT += 3;
+      if(state.role === "judge") scores.Claude += 3;
+      if(state.role === "organize") scores.GPT += 2;
+      if(state.role === "compare") scores.Gemini += 3;
+      if(state.role === "design") { scores.GPT += 2; scores.Claude += 1; }
+
+      // STEP4
+      if(state.style.includes("accurate")) { scores.Claude += 2; scores.Gemini += 1; }
+      if(state.style.includes("safe")) scores.Claude += 2;
+      if(state.style.includes("clear")) scores.GPT += 2;
+      if(state.style.includes("short")) scores.GPT += 2;
+      if(state.style.includes("detailed")) scores.Gemini += 2;
+      if(state.style.includes("structured")) scores.GPT += 2;
+      if(state.style.includes("thorough")) { scores.Claude += 1; scores.Gemini += 1; }
+      if(state.style.includes("soft")) scores.GPT += 1;
+      if(state.style.includes("creative")) scores.GPT += 1;
+      if(state.style.includes("comparable")) scores.Gemini += 2;
+
+      // STEP5
+      if(state.sources.includes("guidelines")) scores.Claude += 2;
+      if(state.sources.includes("terms")) scores.Claude += 2;
+      if(state.sources.includes("incidents")) scores.Claude += 2;
+      if(state.sources.includes("ng")) scores.Claude += 2;
+      if(state.sources.includes("safe_alt")) { scores.Claude += 1; scores.GPT += 1; }
+      if(state.sources.includes("axes")) scores.Gemini += 2;
+      if(state.sources.includes("background")) scores.Gemini += 1;
+      if(state.sources.includes("terms2")) scores.Gemini += 1;
+      if(state.sources.includes("examples")) scores.GPT += 1;
+      if(state.sources.includes("official")) { scores.Claude += 1; scores.Gemini += 1; }
+      if(state.sources.includes("primary")) { scores.Claude += 1; scores.Gemini += 1; }
+
+      const sorted = Object.entries(scores).sort((a,b) => b[1] - a[1]);
+      const topAI = sorted[0][0];
+      const topScore = sorted[0][1];
+      const secondScore = sorted[1][1];
+
+      let reason = "";
+      if(topAI === "Claude"){
+        reason = "点検・判定・安全性・ルール確認の要素が強いためです。";
+      }else if(topAI === "Gemini"){
+        reason = "読解・比較・分析・資料整理の要素が強いためです。";
+      }else{
+        reason = "定型生成・整理・量産・分かりやすい出力の要素が強いためです。";
       }
-      if (isGemini && !isClaude) {
-        return {
-          name: "Gemini",
-          reason: "PDF読解・比較・分析・分解の用途に向いているためです。"
-        };
+
+      if(topScore === secondScore){
+        reason += " 近い候補もありますが、今回はより汎用的に扱いやすい候補を優先しています。";
       }
-      return {
-        name: "GPT",
-        reason: "定型生成・整理・量産・再利用しやすい出力に向いているためです。"
-      };
+
+      return { name: topAI, reason, scores };
     }
 
     function buildSummary(){
-      const target = getLabel(targetOptions, state.target);
-      const role = getLabel(roleOptions, state.role).replace("するチャット", "チャット");
+      const target = state.target;
+      const role = state.role;
 
-      if (state.target === "x" && state.role === "judge") return "X投稿のコンプライアンス判定チャット";
-      if (state.target === "line" && state.role === "template") return "LINE通知文の定型生成チャット";
-      if (state.target === "pdf" && state.role === "compare") return "PDF資料の比較・読解チャット";
-      return `${target}の${role}`;
+      const customMap = {
+        "x_judge": "X投稿のコンプライアンス判定チャット",
+        "x_template": "X投稿文の定型生成チャット",
+        "line_template": "LINE通知文の定型生成チャット",
+        "pdf_compare": "PDF資料の比較・読解チャット",
+        "pdf_analyze": "PDF資料の分析チャット",
+        "analysis_analyze": "分析結果を整理・分析するチャット",
+        "analysis_compare": "分析結果を比較・分析するチャット",
+        "training_summarize": "研修内容の要点整理チャット",
+        "report_summarize": "レポートの要約チャット",
+        "report_compare": "レポートの比較・整理チャット",
+        "workflow_design": "ワークフロー設計チャット",
+        "image_judge": "画像表現の判定チャット",
+        "internal_organize": "社内文書の整理チャット"
+      };
+
+      const key = `${target}_${role}`;
+      if(customMap[key]) return customMap[key];
+
+      const targetLabel = getLabel(targetOptions, state.target);
+      const roleTextMap = {
+        analyze: "を分析するチャット",
+        summarize: "を要約するチャット",
+        template: "の定型生成チャット",
+        judge: "を判定するチャット",
+        organize: "を整理するチャット",
+        compare: "を比較するチャット",
+        design: "の設計チャット"
+      };
+
+      return `${targetLabel}${roleTextMap[role] || "に使うチャット"}`;
     }
 
     function buildPerplexityPrompt(){
       const target = getLabel(targetOptions, state.target);
       const role = getLabel(roleOptions, state.role);
       const sourceLabels = getLabels(sourceOptions, state.sources);
-      const styleLabels = getLabels(styleOptions, state.style);
+      const sourceList = Array.isArray(sourceLabels) ? sourceLabels.filter(v => v !== "特になし") : [];
+
+      const viewPoints = sourceList.length ? sourceList : ["必要な前提情報"];
 
       return `目的:
 ${target}に関する${role}を作るための材料収集
 
 対象:
-${target}における必要情報、注意点、実務で使うための前提条件
+${target}における必要情報や注意点
 
 観点:
-- ${Array.isArray(sourceLabels) ? sourceLabels.join("\n- ") : sourceLabels}
-${Array.isArray(styleLabels) && styleLabels.length ? `- 出力は ${styleLabels.join(" / ")} を意識して使える形にするための観点\n` : ""}優先条件:
-- 公式情報を優先
-- 一次情報候補を優先
-- 事実と推測を分ける
+- ${viewPoints.join("\n- ")}
 
-不要:
-- 一般論のみの解説
-- 曖昧な断定
-- 初心者向けの長すぎる説明
-
-出力形式:
+出力:
 【事実】
 【注意点】
 【禁止事項】
 【参考表現】
-【未確定点】
-【後続AIに渡すべき前提条件】`;
+【後続AIに渡す前提条件】`;
     }
 
     function buildNextPrompt(aiName){
       const summary = buildSummary();
       const styleLabels = getLabels(styleOptions, state.style);
+      const styleText = Array.isArray(styleLabels) && styleLabels.length
+        ? styleLabels.join(" / ")
+        : "必要な条件";
+
       return `以下は、${summary}を作るために収集した材料です。
 この材料をもとに、実務で使えるチャット用プロンプトを作成してください。
 
@@ -581,11 +639,11 @@ ${summary}として使えるプロンプトを完成させたい
 要件:
 - 実務でそのまま使いやすいこと
 - 役割、目的、前提、禁止事項、出力形式を整理すること
-- ${Array.isArray(styleLabels) && styleLabels.length ? `表現は ${styleLabels.join(" / ")} を意識すること` : "必要な表現条件を整理すること"}
+- 表現は ${styleText} を意識すること
 - 不明点は断定しないこと
 
 希望する出力:
-1. システム/基本プロンプト
+1. 基本プロンプト
 2. 使い方
 3. 入力例
 4. 出力形式
@@ -595,9 +653,8 @@ ${summary}として使えるプロンプトを完成させたい
     }
 
     function buildCompletionImage(){
-      const target = getLabel(targetOptions, state.target);
-      const role = getLabel(roleOptions, state.role);
-      return `${target}を対象に、${role}として使えるチャットを作成できます。`;
+      const summary = buildSummary();
+      return `${summary}として使えるチャットを作成できます。`;
     }
 
     function canProceed(){
@@ -754,6 +811,7 @@ ${summary}として使えるプロンプトを完成させたい
             <div class="card-body">
               <div class="log-value" style="margin-bottom:10px;"><span class="badge">${escapeHtml(ai.name)}</span></div>
               <p class="result-text">${escapeHtml(ai.reason)}</p>
+              <div class="small-note">Claude: ${ai.scores.Claude}点 / GPT: ${ai.scores.GPT}点 / Gemini: ${ai.scores.Gemini}点</div>
             </div>
           </div>
 
