@@ -745,22 +745,39 @@
       return `${targetLabel}${roleTextMap[role] || "に使うチャット"}`;
     }
 
-    function buildPerplexityPrompt(){
-      const target = getLabel(targetOptions, state.target);
-      const role = getLabel(roleOptions, state.role);
-      const sourceLabels = getLabels(sourceOptions, state.sources);
-      const sourceList = Array.isArray(sourceLabels) ? sourceLabels.filter(v => v !== "特になし") : [];
+   function buildPerplexityPrompt(){
+  const target = getLabel(targetOptions, state.target);
+  const role = getLabel(roleOptions, state.role);
 
-      const viewPoints = sourceList.length ? sourceList : ["必要な前提情報"];
+  const targetViewMap = {
+    x: ["利用規約", "炎上リスク", "NG表現", "安全な代替表現"],
+    line: ["参考事例", "NG表現", "安全な代替表現", "分かりやすい構成"],
+    pdf: ["要点整理", "比較軸", "専門用語", "前提知識"],
+    training: ["要点整理", "前提知識", "専門用語", "実務への落とし込み"],
+    internal: ["要点整理", "前提条件", "注意点", "用語整理"],
+    report: ["要点整理", "比較軸", "解釈時の注意点", "専門用語"],
+    workflow: ["手順設計に必要な要素", "抜け漏れ観点", "例外ケース", "注意点"],
+    image: ["表現リスク", "NG表現", "権利面の注意点", "安全な代替表現"],
+    analysis: ["比較軸", "読み取りの注意点", "用語定義", "解釈の前提条件"],
+    other: ["必要な前提情報", "注意点", "比較観点", "参考情報"]
+  };
 
-      return `目的:
+  const selectedSourceLabels = getLabels(sourceOptions, state.sources);
+  const selectedSources = Array.isArray(selectedSourceLabels)
+    ? selectedSourceLabels.filter(v => v !== "特になし")
+    : [];
+
+  const baseViews = targetViewMap[state.target] || ["必要な前提情報", "注意点"];
+  const mergedViews = [...new Set([...baseViews, ...selectedSources])];
+
+  return `目的:
 ${target}に関する${role}を作るための材料収集
 
 対象:
 ${target}における必要情報や注意点
 
 観点:
-- ${viewPoints.join("\n- ")}
+- ${mergedViews.join("\n- ")}
 
 出力:
 【事実】
@@ -768,7 +785,7 @@ ${target}における必要情報や注意点
 【禁止事項】
 【参考表現】
 【後続AIに渡す前提条件】`;
-    }
+}
 
     function buildNextPrompt(aiName){
       const summary = buildSummary();
