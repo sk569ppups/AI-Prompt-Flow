@@ -228,6 +228,10 @@
       font:inherit;
       cursor:pointer;
       transition:.2s ease;
+      text-decoration:none;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
     }
     .btn:disabled{
       opacity:.45;
@@ -273,6 +277,8 @@
       margin-top:12px;
       display:flex;
       justify-content:flex-end;
+      gap:10px;
+      flex-wrap:wrap;
     }
     .small-note{
       margin-top:8px;
@@ -334,6 +340,14 @@
             <div class="card-desc">選択内容がここにたまっていきます</div>
           </div>
           <div class="card-body" id="sidebarLog"></div>
+        </div>
+
+        <div class="card" style="margin-top:16px;">
+          <div class="card-header">
+            <h3>進行フロー</h3>
+            <div class="card-desc">今どこまで進んでいるか確認できます</div>
+          </div>
+          <div class="card-body" id="flowLog"></div>
         </div>
       </aside>
 
@@ -486,7 +500,6 @@
     function pickAI(){
       let scores = { Claude: 0, GPT: 0, Gemini: 0 };
 
-      // STEP1: 何をしたいか（最重要）
       switch (state.goal) {
         case "research":
           scores.Gemini += 5;
@@ -514,7 +527,6 @@
           break;
       }
 
-      // STEP2: 対象
       switch (state.target) {
         case "x":
           scores.Claude += 3;
@@ -552,7 +564,6 @@
           break;
       }
 
-      // STEP3: チャットの役割
       switch (state.role) {
         case "analyze":
           scores.Gemini += 3;
@@ -581,7 +592,6 @@
           break;
       }
 
-      // STEP4: 表現
       if (state.style.includes("accurate")) {
         scores.Claude += 2;
         scores.Gemini += 1;
@@ -615,7 +625,6 @@
         scores.Gemini += 2;
       }
 
-      // STEP5: ソース
       if (state.sources.includes("guidelines")) {
         scores.Claude += 2;
       }
@@ -653,7 +662,6 @@
         scores.Claude += 1;
       }
 
-      // 追加補正
       if (state.goal === "create" && state.target === "line") {
         scores.GPT += 2;
       }
@@ -745,32 +753,32 @@
       return `${targetLabel}${roleTextMap[role] || "に使うチャット"}`;
     }
 
-   function buildPerplexityPrompt(){
-  const target = getLabel(targetOptions, state.target);
-  const role = getLabel(roleOptions, state.role);
+    function buildPerplexityPrompt(){
+      const target = getLabel(targetOptions, state.target);
+      const role = getLabel(roleOptions, state.role);
 
-  const targetViewMap = {
-    x: ["利用規約", "炎上リスク", "NG表現", "安全な代替表現"],
-    line: ["参考事例", "NG表現", "安全な代替表現", "分かりやすい構成"],
-    pdf: ["要点整理", "比較軸", "専門用語", "前提知識"],
-    training: ["要点整理", "前提知識", "専門用語", "実務への落とし込み"],
-    internal: ["要点整理", "前提条件", "注意点", "用語整理"],
-    report: ["要点整理", "比較軸", "解釈時の注意点", "専門用語"],
-    workflow: ["手順設計に必要な要素", "抜け漏れ観点", "例外ケース", "注意点"],
-    image: ["表現リスク", "NG表現", "権利面の注意点", "安全な代替表現"],
-    analysis: ["比較軸", "読み取りの注意点", "用語定義", "解釈の前提条件"],
-    other: ["必要な前提情報", "注意点", "比較観点", "参考情報"]
-  };
+      const targetViewMap = {
+        x: ["利用規約", "炎上リスク", "NG表現", "安全な代替表現"],
+        line: ["参考事例", "NG表現", "安全な代替表現", "分かりやすい構成"],
+        pdf: ["要点整理", "比較軸", "専門用語", "前提知識"],
+        training: ["要点整理", "前提知識", "専門用語", "実務への落とし込み"],
+        internal: ["要点整理", "前提条件", "注意点", "用語整理"],
+        report: ["要点整理", "比較軸", "解釈時の注意点", "専門用語"],
+        workflow: ["手順設計に必要な要素", "抜け漏れ観点", "例外ケース", "注意点"],
+        image: ["表現リスク", "NG表現", "権利面の注意点", "安全な代替表現"],
+        analysis: ["比較軸", "読み取りの注意点", "用語定義", "解釈の前提条件"],
+        other: ["必要な前提情報", "注意点", "比較観点", "参考情報"]
+      };
 
-  const selectedSourceLabels = getLabels(sourceOptions, state.sources);
-  const selectedSources = Array.isArray(selectedSourceLabels)
-    ? selectedSourceLabels.filter(v => v !== "特になし")
-    : [];
+      const selectedSourceLabels = getLabels(sourceOptions, state.sources);
+      const selectedSources = Array.isArray(selectedSourceLabels)
+        ? selectedSourceLabels.filter(v => v !== "特になし")
+        : [];
 
-  const baseViews = targetViewMap[state.target] || ["必要な前提情報", "注意点"];
-  const mergedViews = [...new Set([...baseViews, ...selectedSources])];
+      const baseViews = targetViewMap[state.target] || ["必要な前提情報", "注意点"];
+      const mergedViews = [...new Set([...baseViews, ...selectedSources])];
 
-  return `目的:
+      return `目的:
 ${target}に関する${role}を作るための材料収集
 
 対象:
@@ -785,7 +793,7 @@ ${target}における必要情報や注意点
 【禁止事項】
 【参考表現】
 【後続AIに渡す前提条件】`;
-}
+    }
 
     function buildNextPrompt(aiName){
       const summary = buildSummary();
@@ -819,6 +827,46 @@ ${summary}として使えるプロンプトを完成させたい
     function buildCompletionImage(){
       const summary = buildSummary();
       return `${summary}として使えるチャットを作成できます。`;
+    }
+
+    function getAiLink(aiName){
+      const links = {
+        Claude: "https://claude.ai/",
+        GPT: "https://chatgpt.com/",
+        Gemini: "https://gemini.google.com/",
+        Perplexity: "https://www.perplexity.ai/"
+      };
+      return links[aiName] || "#";
+    }
+
+    function renderFlowHtml(){
+      const flowSteps = [
+        "① 条件を選ぶ",
+        "② 結果を確認する",
+        "③ Perplexityで材料を集める",
+        "④ 推奨AIでチャット用プロンプトを作る",
+        "⑤ 新しいチャットで使い始める"
+      ];
+
+      let currentIndex = 0;
+
+      if(state.currentStep < steps.length){
+        currentIndex = 0;
+      }else{
+        currentIndex = 1;
+      }
+
+      return `
+        <div class="log-item">
+          <div class="log-value" style="display:grid; gap:10px;">
+            ${flowSteps.map((step, index) => `
+              <div class="badge ${index <= currentIndex ? "" : "outline"}" style="width:100%; justify-content:flex-start;">
+                ${escapeHtml(step)}
+              </div>
+            `).join("")}
+          </div>
+        </div>
+      `;
     }
 
     function canProceed(){
@@ -955,6 +1003,8 @@ ${summary}として使えるプロンプトを完成させたい
       const perplexityPrompt = buildPerplexityPrompt();
       const nextPrompt = buildNextPrompt(ai.name);
       const completionImage = buildCompletionImage();
+      const perplexityLink = getAiLink("Perplexity");
+      const recommendedAiLink = getAiLink(ai.name);
 
       app.innerHTML = `
         <div class="result-stack">
@@ -983,7 +1033,10 @@ ${summary}として使えるプロンプトを完成させたい
             <div class="card-header"><h3>3. まず Perplexity に貼る文章</h3></div>
             <div class="card-body">
               <div class="codebox" id="perplexityBox">${escapeHtml(perplexityPrompt)}</div>
-              <div class="copy-row"><button class="btn btn-secondary" onclick="copyText('perplexityBox')">コピー</button></div>
+              <div class="copy-row">
+                <button class="btn btn-secondary" onclick="copyText('perplexityBox')">コピー</button>
+                <a href="${perplexityLink}" target="_blank" rel="noopener noreferrer" class="btn btn-secondary">Perplexityを開く</a>
+              </div>
               <div class="small-note">この文章を Perplexity に貼り付けて、後続AIに渡すための材料を集めてください。</div>
             </div>
           </div>
@@ -992,7 +1045,10 @@ ${summary}として使えるプロンプトを完成させたい
             <div class="card-header"><h3>4. 次にAIへ貼る文章</h3></div>
             <div class="card-body">
               <div class="codebox" id="nextAiBox">${escapeHtml(nextPrompt)}</div>
-              <div class="copy-row"><button class="btn btn-secondary" onclick="copyText('nextAiBox')">コピー</button></div>
+              <div class="copy-row">
+                <button class="btn btn-secondary" onclick="copyText('nextAiBox')">コピー</button>
+                <a href="${recommendedAiLink}" target="_blank" rel="noopener noreferrer" class="btn btn-secondary">${escapeHtml(ai.name)}を開く</a>
+              </div>
               <div class="small-note">Perplexity で集めた結果を、この文章と一緒に ${escapeHtml(ai.name)} に貼り付けてください。</div>
             </div>
           </div>
@@ -1025,6 +1081,12 @@ ${summary}として使えるプロンプトを完成させたい
     function renderAll(){
       document.getElementById("sidebarLog").innerHTML = renderLogHtml();
       document.getElementById("mobileLogBody").innerHTML = renderLogHtml();
+
+      const flowLog = document.getElementById("flowLog");
+      if(flowLog){
+        flowLog.innerHTML = renderFlowHtml();
+      }
+
       updateProgress();
       renderStep();
     }
